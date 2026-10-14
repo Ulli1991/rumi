@@ -1,0 +1,1074 @@
+{
+  "TEST_CASE": {
+    "type": "S",
+    "default": "outer_planets",
+    "category": "Run",
+    "level": "USER",
+    "choices": "plummer|outer_planets|binary_test|binary_test_peri|triple_test",
+    "description": "Initial conditions: a star cluster (plummer) or a few-body test problem (--test overrides)"
+  },
+  "TOTAL_TIME_MYR": {
+    "type": "D",
+    "default": "0.23",
+    "category": "Run",
+    "level": "USER",
+    "choices": "",
+    "description": "End time (Myr)"
+  },
+  "DT_MAX_MYR": {
+    "type": "D",
+    "default": "1.6e-3",
+    "category": "Run",
+    "level": "USER",
+    "choices": "",
+    "description": "Integration interval (Myr): the level-0 step; diagnostics, restarts and snapshots count these steps"
+  },
+  "DT_MIN_MYR": {
+    "type": "D",
+    "default": "1.0e-14",
+    "category": "Run",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Smallest time step (Myr): the deepest HHS level"
+  },
+  "INTEGRATOR": {
+    "type": "S",
+    "default": "hhs",
+    "category": "Run",
+    "level": "INTERNAL",
+    "choices": "hhs|fsi",
+    "description": "hhs: adaptive HHS-FSI (FROST Algorithm 4); fsi: every particle on the fastest occupied level (tests)"
+  },
+  "PLUMMER_N": {
+    "type": "I",
+    "default": "1000",
+    "category": "Star cluster",
+    "level": "USER",
+    "choices": "",
+    "description": "Number of stars"
+  },
+  "PLUMMER_M_TOTAL": {
+    "type": "D",
+    "default": "3.79e2",
+    "category": "Star cluster",
+    "level": "USER",
+    "choices": "",
+    "description": "Total mass (Msun); not used by kroupa_evolved"
+  },
+  "PLUMMER_R_HALF": {
+    "type": "S",
+    "default": "mass_size",
+    "category": "Star cluster",
+    "level": "USER",
+    "choices": "mass_size|<number>",
+    "description": "Half-mass radius (pc), or mass_size: the SCIC mass-size relation (BIFROST App. A eq. A2-A3)"
+  },
+  "PLUMMER_MASS_DIST": {
+    "type": "S",
+    "default": "equal",
+    "category": "Star cluster",
+    "level": "USER",
+    "choices": "equal|kroupa|kroupa_evolved",
+    "description": "Masses: equal, Kroupa IMF (ZAMS), or Kroupa IMF evolved with SSE to PLUMMER_AGE_GYR"
+  },
+  "PLUMMER_AGE_GYR": {
+    "type": "D",
+    "default": "1.0",
+    "category": "Star cluster",
+    "level": "USER",
+    "choices": "",
+    "description": "Age of the population for kroupa_evolved (Gyr)"
+  },
+  "PLUMMER_METALLICITY": {
+    "type": "D",
+    "default": "0.02",
+    "category": "Star cluster",
+    "level": "USER",
+    "choices": "",
+    "description": "Metallicity Z of the population for kroupa_evolved"
+  },
+  "PLUMMER_SEED": {
+    "type": "I",
+    "default": "42",
+    "category": "Star cluster",
+    "level": "USER",
+    "choices": "",
+    "description": "Random seed of the initial conditions"
+  },
+  "REMOVE_BH": {
+    "type": "B",
+    "default": "false",
+    "category": "Star cluster",
+    "level": "USER",
+    "choices": "",
+    "description": "Strip the black holes from the initial conditions"
+  },
+  "BINARY_FRAC": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Primordial binaries",
+    "level": "USER",
+    "choices": "",
+    "description": "Primordial binary fraction (0-1)"
+  },
+  "BINARY_POP": {
+    "type": "S",
+    "default": "bifrost",
+    "category": "Primordial binaries",
+    "level": "USER",
+    "choices": "bifrost|mass_rank",
+    "description": "Pairing: bifrost (BIFROST App. A: flat q in [0.1, 1) above 5 Msun, random pairs below); mass_rank: heaviest with next heaviest"
+  },
+  "BINARY_A_MIN_AU": {
+    "type": "D",
+    "default": "0.01",
+    "category": "Primordial binaries",
+    "level": "USER",
+    "choices": "",
+    "description": "Smallest semi-major axis (AU), log-uniform in a"
+  },
+  "BINARY_A_MAX_AU": {
+    "type": "D",
+    "default": "100.0",
+    "category": "Primordial binaries",
+    "level": "USER",
+    "choices": "",
+    "description": "Largest semi-major axis (AU)"
+  },
+  "R_BREAK_AU": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Primordial binaries",
+    "level": "USER",
+    "choices": "",
+    "description": "Remove artificial binaries with a < r_break (AU) from the ICs (BIFROST App. A); 0: IC_R_BREAK"
+  },
+  "IC_R_BREAK": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Primordial binaries",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "r_break in units of BINARY_A_MAX_AU (BIFROST Table A1: a few); used only when R_BREAK_AU = 0"
+  },
+  "BINARY_PERI_CHECK": {
+    "type": "B",
+    "default": "true",
+    "category": "Primordial binaries",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Redraw e (or a) until r_p = a (1 - e) > R1 + R2 (TDE radius / ISCO with BHs), FROST-CLUSTERS II sec. 2.3"
+  },
+  "ADD_IMBH": {
+    "type": "B",
+    "default": "false",
+    "category": "IMBH binary",
+    "level": "USER",
+    "choices": "",
+    "description": "Put an IMBH binary at the cluster centre"
+  },
+  "IMBH_M1": {
+    "type": "D",
+    "default": "500.0",
+    "category": "IMBH binary",
+    "level": "USER",
+    "choices": "",
+    "description": "Primary mass (Msun)"
+  },
+  "IMBH_M2": {
+    "type": "D",
+    "default": "500.0",
+    "category": "IMBH binary",
+    "level": "USER",
+    "choices": "",
+    "description": "Secondary mass (Msun)"
+  },
+  "IMBH_A_PC": {
+    "type": "D",
+    "default": "1e-4",
+    "category": "IMBH binary",
+    "level": "USER",
+    "choices": "",
+    "description": "Semi-major axis (pc)"
+  },
+  "IMBH_E": {
+    "type": "D",
+    "default": "0.5",
+    "category": "IMBH binary",
+    "level": "USER",
+    "choices": "",
+    "description": "Eccentricity"
+  },
+  "IMBH_SPIN": {
+    "type": "D",
+    "default": "0.0",
+    "category": "IMBH binary",
+    "level": "USER",
+    "choices": "",
+    "description": "Dimensionless spin of both BHs (along z)"
+  },
+  "COLLISIONAL": {
+    "type": "B",
+    "default": "false",
+    "category": "Physics",
+    "level": "USER",
+    "choices": "",
+    "description": "Unsoftened direct N-body with subsystems, PN and mergers (BIFROST); false: softened N-body"
+  },
+  "PN_ORDER": {
+    "type": "I",
+    "default": "7",
+    "category": "Physics",
+    "level": "USER",
+    "choices": "",
+    "description": "PN bitmask: 1 PN1, 2 PN2, 4 PN2.5, 8 PN3, 16 PN3.5, 32 BH spin couplings (63 all; 0 off)"
+  },
+  "M_PN": {
+    "type": "D",
+    "default": "5.0",
+    "category": "Physics",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "PN terms only for pairs with a member of at least this mass (Msun)"
+  },
+  "SOFTENING_PC": {
+    "type": "D",
+    "default": "1e-3",
+    "category": "Physics",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Plummer softening (pc); 0 with COLLISIONAL"
+  },
+  "SSE_ENABLED": {
+    "type": "B",
+    "default": "true",
+    "category": "Stellar evolution",
+    "level": "USER",
+    "choices": "",
+    "description": "Single stellar evolution during the run (COLLISIONAL)"
+  },
+  "SSE_METALLICITY": {
+    "type": "D",
+    "default": "0.02",
+    "category": "Stellar evolution",
+    "level": "USER",
+    "choices": "",
+    "description": "Metallicity Z of the runtime SSE"
+  },
+  "SSE_WIND_MODEL": {
+    "type": "S",
+    "default": "HURLEY",
+    "category": "Stellar evolution",
+    "level": "USER",
+    "choices": "HURLEY|HURLEY_LBV|VINK|VINK_NO_BISTAB",
+    "description": "Stellar winds (also for kroupa_evolved ICs)"
+  },
+  "SSE_REMNANT_MODEL": {
+    "type": "S",
+    "default": "BELCZYNSKI02",
+    "category": "Stellar evolution",
+    "level": "USER",
+    "choices": "HURLEY|BELCZYNSKI02|BELCZYNSKI08|FRYER_RAPID|FRYER_DELAYED|ELDRIDGE_TOUT",
+    "description": "Remnant masses"
+  },
+  "SSE_PPISN_MODEL": {
+    "type": "S",
+    "default": "NONE",
+    "category": "Stellar evolution",
+    "level": "USER",
+    "choices": "NONE|STRONG|MODERATE|WEAK",
+    "description": "Pulsational pair-instability mass loss"
+  },
+  "SSE_ECSN_MODEL": {
+    "type": "S",
+    "default": "OFF",
+    "category": "Stellar evolution",
+    "level": "USER",
+    "choices": "OFF|ON",
+    "description": "Electron-capture supernovae"
+  },
+  "SSE_MXNS": {
+    "type": "D",
+    "default": "-1.0",
+    "category": "Stellar evolution",
+    "level": "USER",
+    "choices": "",
+    "description": "Largest neutron-star mass (Msun); -1: 1.8 for HURLEY, 2.5 otherwise"
+  },
+  "SSE_FLBV": {
+    "type": "D",
+    "default": "1.5",
+    "category": "Stellar evolution",
+    "level": "USER",
+    "choices": "",
+    "description": "LBV wind scaling factor"
+  },
+  "SSE_NATAL_KICKS": {
+    "type": "S",
+    "default": "hobbs",
+    "category": "Stellar evolution",
+    "level": "USER",
+    "choices": "hobbs|none",
+    "description": "Natal kicks of new NSs and BHs: Maxwellian sigma = 265 km/s (Hobbs 2005) times (1 - f_fb), ECSN 3 km/s (Banerjee 2020); none: no kick"
+  },
+  "COLL_MASS_LOSS_C": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Collisions and mergers",
+    "level": "USER",
+    "choices": "",
+    "description": "Stellar-collision mass loss: m_rem = (m1 + m2)(1 - C q / (1 + q)^2) (Glebbeek 2013; FROST-CLUSTERS III: 0.3)"
+  },
+  "TDE_ACCRETION_FRACTION": {
+    "type": "D",
+    "default": "0.5",
+    "category": "Collisions and mergers",
+    "level": "USER",
+    "choices": "",
+    "description": "Fraction of a tidally disrupted star the BH accretes (FROST-CLUSTERS I, DRAGON-II)"
+  },
+  "BH_MERGE_RADIUS": {
+    "type": "S",
+    "default": "total",
+    "category": "Collisions and mergers",
+    "level": "USER",
+    "choices": "total|max_single",
+    "description": "BH-BH merger at r < 6 G (m1 + m2) / c^2 (total) or max(6 G m_i / c^2) (max_single, FROST-CLUSTERS I)"
+  },
+  "R_ESCAPE_RH": {
+    "type": "D",
+    "default": "100.0",
+    "category": "Escapers and tidal field",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Escape radius in half-mass radii"
+  },
+  "R_ESCAPE_RJ": {
+    "type": "D",
+    "default": "2.0",
+    "category": "Escapers and tidal field",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "With TIDAL_FIELD: escape radius in Jacobi radii (NBODY6); 0: R_ESCAPE_RH"
+  },
+  "TIDAL_FIELD": {
+    "type": "S",
+    "default": "none",
+    "category": "Escapers and tidal field",
+    "level": "USER",
+    "choices": "none|pointmass|loghalo",
+    "description": "Host galaxy tide on a cluster on a circular orbit (PeTar-style reference point)"
+  },
+  "GALAXY_R_PC": {
+    "type": "D",
+    "default": "8000.0",
+    "category": "Escapers and tidal field",
+    "level": "USER",
+    "choices": "",
+    "description": "Galactocentric orbit radius (pc)"
+  },
+  "GALAXY_VC_KMS": {
+    "type": "D",
+    "default": "220.0",
+    "category": "Escapers and tidal field",
+    "level": "USER",
+    "choices": "",
+    "description": "loghalo circular velocity (km/s)"
+  },
+  "GALAXY_RC_PC": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Escapers and tidal field",
+    "level": "USER",
+    "choices": "",
+    "description": "loghalo core radius (pc)"
+  },
+  "GALAXY_MASS_MSUN": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Escapers and tidal field",
+    "level": "USER",
+    "choices": "",
+    "description": "pointmass galaxy mass (Msun)"
+  },
+  "ETA_FF": {
+    "type": "D",
+    "default": "0.2",
+    "category": "Time steps",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Free-fall time-step eta (BIFROST sec. 3.4)"
+  },
+  "ETA_FB": {
+    "type": "D",
+    "default": "0.2",
+    "category": "Time steps",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Fly-by time-step eta"
+  },
+  "ETA_GRAD": {
+    "type": "D",
+    "default": "0.2",
+    "category": "Time steps",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Gradient time-step eta (FROST-CLUSTERS; BIFROST 0.1)"
+  },
+  "ETA_JERK": {
+    "type": "D",
+    "default": "0",
+    "category": "Time steps",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Jerk time-step eta (0: off, FROST-CLUSTERS; BIFROST 0.1)"
+  },
+  "ETA": {
+    "type": "D",
+    "default": "0",
+    "category": "Time steps",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Velocity / acceleration time-step eta (0: off, FROST-CLUSTERS; BIFROST 0.2)"
+  },
+  "ETA_PERT": {
+    "type": "D",
+    "default": "0.02",
+    "category": "Time steps",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Perturbation time-step eta of subsystems (BIFROST Eq. 30)"
+  },
+  "ETA_GBS": {
+    "type": "D",
+    "default": "1e-10",
+    "category": "Time steps",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "GBS extrapolation tolerance of the LogH integrator"
+  },
+  "ETA_RESTART": {
+    "type": "D",
+    "default": "1e-8",
+    "category": "Time steps",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Energy-error threshold of the per-subsystem LogH restart and the step-level restart (0: off)"
+  },
+  "N_ORB_SECULAR": {
+    "type": "I",
+    "default": "3",
+    "category": "Time steps",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Binaries with more orbits than this per step take the secular (orbit-averaged) path"
+  },
+  "GRAD_FRESH": {
+    "type": "B",
+    "default": "false",
+    "category": "Time steps",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Gradient time step from a fresh |g'| at level 0"
+  },
+  "R_NGB": {
+    "type": "D",
+    "default": "1e-3",
+    "category": "Subsystems",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Neighbour radius (pc) of the subsystem search"
+  },
+  "R_NGB_MAX": {
+    "type": "D",
+    "default": "0.1",
+    "category": "Subsystems",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Largest separation (pc) of the orbital-element check"
+  },
+  "SECULAR_TRIPLES": {
+    "type": "B",
+    "default": "true",
+    "category": "Subsystems",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Stable triples with >= N_ORB_SECULAR inner orbits per step take the double-averaged secular path; false: LogH"
+  },
+  "SDAR": {
+    "type": "B",
+    "default": "true",
+    "category": "Subsystems",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Slow-down of weakly perturbed inner binaries in LogH (Wang+2020; FROST-CLUSTERS I App. A2); env NBODY_SDAR overrides"
+  },
+  "SDAR_KREF": {
+    "type": "D",
+    "default": "1e-6",
+    "category": "Subsystems",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "SDAR k_ref of the slow-down factor (W20 Eq. 22)"
+  },
+  "SDAR_C": {
+    "type": "D",
+    "default": "0.1",
+    "category": "Subsystems",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "SDAR kappa_max coefficient c (W20 Eq. 28)"
+  },
+  "GBS_SEQUENCE": {
+    "type": "S",
+    "default": "bulirsch",
+    "category": "Subsystems",
+    "level": "EXPERIMENT",
+    "choices": "bulirsch|deuflhard",
+    "description": "GBS substep sequence: bulirsch (2, 4, 6, 8, 12, 16, ...) or deuflhard (2, 4, 6, 8, 10, ...; MSTAR)"
+  },
+  "GBS_KMAX": {
+    "type": "I",
+    "default": "10",
+    "category": "Subsystems",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "GBS extrapolation stages (FROST-CLUSTERS I: 8)"
+  },
+  "FLYBY_CM_VELOCITY": {
+    "type": "B",
+    "default": "false",
+    "category": "Subsystems",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Fly-by step of subsystem members with the c.o.m. velocity (FROST-CLUSTERS II sec. 2.1)"
+  },
+  "FLYBY_CM_KICK": {
+    "type": "B",
+    "default": "false",
+    "category": "Subsystems",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Bound binaries with quadrupole tidal energy <= FLYBY_CM_KICK_EPS x |E0| interact with all other particles through their c.o.m. (mollified kicks: no orbit sampling, no tidal-sampling step; P, L exact)"
+  },
+  "FLYBY_CM_KICK_EPS": {
+    "type": "D",
+    "default": "1e-12",
+    "category": "Subsystems",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Largest D / |E0| of a FLYBY_CM_KICK binary, D = mu r_apo^2 sum_j G m_j / d_j^3"
+  },
+  "FLYBY_CM_EPS": {
+    "type": "D",
+    "default": "1e-11",
+    "category": "Subsystems",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Tidal-sampling pair step: energy a slow particle's kicks put into a subsystem per step <= this x |E0| (0: off)"
+  },
+  "TIDAL_STEP_RES": {
+    "type": "D",
+    "default": "1.0",
+    "category": "Subsystems",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Floor of the FLYBY_CM_EPS step: this x P (1 - e)^(3/2) of the member's binary (0: none)"
+  },
+  "FLYBY_NGB_CM": {
+    "type": "B",
+    "default": "true",
+    "category": "Subsystems",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Distant fly-by neighbour test of a binary member against the binary's c.o.m."
+  },
+  "NGB_MASS_SCALING": {
+    "type": "B",
+    "default": "true",
+    "category": "Subsystems",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Pair neighbour radius r_ngb max(1, m / <m>)^(1/3) (PeTar Eq. 12); the extra pairs join only as strong perturbers of a binary"
+  },
+  "NGB_MASS_GAMMA": {
+    "type": "D",
+    "default": "1e-3",
+    "category": "Subsystems",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Tidal ratio above which a mass-scaled neighbour joins a binary"
+  },
+  "NGB_MREF": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Subsystems",
+    "level": "TEST",
+    "choices": "",
+    "description": "<m> of NGB_MASS_SCALING (Msun) instead of the cluster's (0)"
+  },
+  "NGB_WIDE_FAC": {
+    "type": "D",
+    "default": "0",
+    "category": "Subsystems",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Bound pairs with a < NGB_WIDE_FAC x R_NGB are neighbours (wide binaries; 0: off, BIFROST)"
+  },
+  "MSTAR_THRESHOLD": {
+    "type": "I",
+    "default": "8",
+    "category": "Subsystems",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Subsystems of at least this many bodies for MSTAR (not wired: printed only, every subsystem uses LogH)"
+  },
+  "PRINT_INTERVAL": {
+    "type": "I",
+    "default": "1000",
+    "category": "Output",
+    "level": "USER",
+    "choices": "",
+    "description": "Diagnostics every this many steps"
+  },
+  "PROFILING": {
+    "type": "B",
+    "default": "true",
+    "category": "Output",
+    "level": "USER",
+    "choices": "",
+    "description": "Timers and the performance breakdown at each print"
+  },
+  "PROFILING_FENCES": {
+    "type": "B",
+    "default": "true",
+    "category": "Output",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Fence the device at each timer stop (exact per-component times, ~4 % of a 200k step)"
+  },
+  "RESTART_INTERVAL": {
+    "type": "I",
+    "default": "0",
+    "category": "Output",
+    "level": "USER",
+    "choices": "",
+    "description": "Restart file every this many steps and at the end (0: off; needs USE_HDF5)"
+  },
+  "WALLTIME_LIMIT": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Output",
+    "level": "USER",
+    "choices": "",
+    "description": "Hours: restart file and clean stop before this wall time (0: off)"
+  },
+  "RESTART_DIR": {
+    "type": "S",
+    "default": ".",
+    "category": "Output",
+    "level": "USER",
+    "choices": "",
+    "description": "Directory of restart_<step>.h5"
+  },
+  "RESTART_FILE": {
+    "type": "S",
+    "default": "",
+    "category": "Output",
+    "level": "USER",
+    "choices": "",
+    "description": "Continue from this file; latest: newest in RESTART_DIR; auto: that or a fresh start (--restart overrides)"
+  },
+  "RESTART_KEEP": {
+    "type": "I",
+    "default": "2",
+    "category": "Output",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Restart files kept (the newest)"
+  },
+  "SNAPSHOT_INTERVAL": {
+    "type": "I",
+    "default": "0",
+    "category": "Output",
+    "level": "USER",
+    "choices": "",
+    "description": "LUNA-layout snapshot every this many steps, at step 0 and at the end (0: off)"
+  },
+  "SNAPSHOT_DIR": {
+    "type": "S",
+    "default": ".",
+    "category": "Output",
+    "level": "USER",
+    "choices": "",
+    "description": "Directory of snapdir_NNN/snapshot_NNN.0.hdf5"
+  },
+  "SNAPSHOT_BASE": {
+    "type": "S",
+    "default": "snapshot",
+    "category": "Output",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Snapshot file base name"
+  },
+  "SNAPSHOT_POTENTIAL": {
+    "type": "B",
+    "default": "true",
+    "category": "Output",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Write the potential of each particle into snapshots"
+  },
+  "SNAPSHOT_CLUSTER_DIAG": {
+    "type": "B",
+    "default": "true",
+    "category": "Output",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Density centre, core, Lagrangian radii, binaries (and r_J) in each snapshot Header"
+  },
+  "CLUSTER_DIAG_INTERVAL": {
+    "type": "I",
+    "default": "0",
+    "category": "Output",
+    "level": "USER",
+    "choices": "",
+    "description": "Cluster diagnostics (density centre, core, Lagrangian radii, binaries) every this many steps (0: off)"
+  },
+  "CLUSTER_DIAG_FILE": {
+    "type": "S",
+    "default": "cluster_diag.dat",
+    "category": "Output",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "File of the cluster diagnostics (rank 0)"
+  },
+  "CLUSTER_DIAG_RPAIR_PC": {
+    "type": "D",
+    "default": "0.02",
+    "category": "Output",
+    "level": "EXPERT",
+    "choices": "",
+    "description": "Largest pair separation in the binary census (pc)"
+  },
+  "SERIAL_N2_GPU": {
+    "type": "I",
+    "default": "16384",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Below this count: full N^2 on every rank, no MPI distribution (0: always distributed)"
+  },
+  "SERIAL_N2_CPU": {
+    "type": "I",
+    "default": "0",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Below this count: N^2 in host loops instead of device kernels (0: off; MI300A 200k: 0 is fastest)"
+  },
+  "REPLICA_CHECK_INTERVAL": {
+    "type": "I",
+    "default": "10",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Distributed runs: check every this many steps that the replicas agree (0: off)"
+  },
+  "MPI_NON_BLOCKING": {
+    "type": "B",
+    "default": "false",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "MPI_Iallgatherv for overlapped transfers"
+  },
+  "MPI_TRANSPORT": {
+    "type": "S",
+    "default": "auto",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "auto|nccl|host",
+    "description": "Allgathers: nccl (USE_NCCL builds; auto there), host (staged through pinned host memory; auto otherwise)"
+  },
+  "USE_TREE": {
+    "type": "B",
+    "default": "false",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Barnes-Hut tree forces above TREE_THRESHOLD (not with COLLISIONAL)"
+  },
+  "TREE_THRESHOLD": {
+    "type": "I",
+    "default": "100000",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Tree forces above this count"
+  },
+  "TREE_THETA": {
+    "type": "D",
+    "default": "0.7",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Tree opening angle"
+  },
+  "TREE_N_LEAF": {
+    "type": "I",
+    "default": "32",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Largest leaf cell"
+  },
+  "TREE_N_GROUP": {
+    "type": "I",
+    "default": "64",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Particles per tree traversal group"
+  },
+  "TREE_DT_MIN_N": {
+    "type": "I",
+    "default": "-1",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Exact device-tree time-step search for sets of at least this many (0: off; -1: host builds 2048, GPU 65536, 300000 with FLYBY_CM_VELOCITY)"
+  },
+  "TREE_NGB_MIN_N": {
+    "type": "I",
+    "default": "-1",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "The same for the neighbour search (-1: host builds 2048, GPU 32768)"
+  },
+  "TREE_DT_CPU_MAX": {
+    "type": "I",
+    "default": "0",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Host-thread tree search for sets up to this size (host builds / APUs; 0: off)"
+  },
+  "TREE_DT_VC_FAC": {
+    "type": "D",
+    "default": "30.0",
+    "category": "Performance and parallelism",
+    "level": "INTERNAL",
+    "choices": "",
+    "description": "Low-speed split of the tree time-step search (multiple of V_c)"
+  },
+  "HHS_CC": {
+    "type": "B",
+    "default": "false",
+    "category": "Performance and parallelism",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Fast HHS sets split into connected components (Janes et al. 2014)"
+  },
+  "HHS_CC_MAX": {
+    "type": "I",
+    "default": "-1",
+    "category": "Performance and parallelism",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Largest set split, run locally on every rank (-1: max(SERIAL_N2_GPU, 16384))"
+  },
+  "HHS_CC_MIN": {
+    "type": "I",
+    "default": "0",
+    "category": "Performance and parallelism",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Components smaller than this recurse together as one group (0: off)"
+  },
+  "INTEGER_POSITIONS": {
+    "type": "B",
+    "default": "false",
+    "category": "Performance and parallelism",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "int64 positions (exact drift, MPI-safe)"
+  },
+  "DOMAIN_HALFSIZE_PC": {
+    "type": "D",
+    "default": "200",
+    "category": "Performance and parallelism",
+    "level": "EXPERIMENT",
+    "choices": "",
+    "description": "Half-size of the INTEGER_POSITIONS domain (pc)"
+  },
+  "BINARY_A_PC": {
+    "type": "D",
+    "default": "1e-8",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "binary_test: semi-major axis (pc)"
+  },
+  "BINARY_E": {
+    "type": "D",
+    "default": "0.9",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "binary_test: eccentricity"
+  },
+  "BINARY_M1": {
+    "type": "D",
+    "default": "10.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "binary_test: primary mass (Msun)"
+  },
+  "BINARY_M2": {
+    "type": "D",
+    "default": "10.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "binary_test: secondary mass (Msun)"
+  },
+  "BINARY_ROT_DEG": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "binary_test: rotation of the orbit in its plane (deg)"
+  },
+  "BINARY_CHI1": {
+    "type": "S",
+    "default": "",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "binary_test: dimensionless spin vector \"cx,cy,cz\" of body 1"
+  },
+  "BINARY_CHI2": {
+    "type": "S",
+    "default": "",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "binary_test: dimensionless spin vector of body 2"
+  },
+  "TRIPLE_A_IN_PC": {
+    "type": "D",
+    "default": "1e-8",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test: inner semi-major axis (pc)"
+  },
+  "TRIPLE_E_IN": {
+    "type": "D",
+    "default": "0.1",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test: inner eccentricity"
+  },
+  "TRIPLE_M1": {
+    "type": "D",
+    "default": "10.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test: inner primary mass (Msun)"
+  },
+  "TRIPLE_M2": {
+    "type": "D",
+    "default": "10.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test: inner secondary mass (Msun)"
+  },
+  "TRIPLE_A_OUT_PC": {
+    "type": "D",
+    "default": "5e-8",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test: outer semi-major axis (pc)"
+  },
+  "TRIPLE_E_OUT": {
+    "type": "D",
+    "default": "0.1",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test: outer eccentricity"
+  },
+  "TRIPLE_M3": {
+    "type": "D",
+    "default": "10.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test: outer body mass (Msun)"
+  },
+  "TRIPLE_INCL_DEG": {
+    "type": "D",
+    "default": "45.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test: mutual inclination (deg)"
+  },
+  "TRIPLE_OUTER_FIRST": {
+    "type": "B",
+    "default": "false",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test: outer body at the lowest particle id"
+  },
+  "TRIPLE_IN_ROT_DEG": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test: rotation of the inner orbit (deg)"
+  },
+  "TRIPLE_IN_START_Q": {
+    "type": "D",
+    "default": "5.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test, unbound inner orbit: start at this many pericentre distances"
+  },
+  "TRIPLE_OUT_START_Q": {
+    "type": "D",
+    "default": "5.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "triple_test, unbound outer orbit: start at this many pericentre distances"
+  },
+  "TEST_STELLAR_RADIUS_RSUN": {
+    "type": "D",
+    "default": "0.0",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "Few-body tests: stellar radius of every non-BH body (Rsun; 0: none)"
+  },
+  "TEST_BOOST_KMS": {
+    "type": "S",
+    "default": "",
+    "category": "Test problems",
+    "level": "TEST",
+    "choices": "",
+    "description": "Few-body tests: uniform velocity \"vx,vy,vz\" (km/s) added to every body"
+  }
+}

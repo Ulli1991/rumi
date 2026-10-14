@@ -15,8 +15,10 @@ def main():
     root = Path(__file__).resolve().parents[1]
     output = args.output or root / "build" / ("librumi_cpu.dylib" if sys.platform == "darwin" else "librumi_cpu.so")
     output.parent.mkdir(parents=True, exist_ok=True)
-    command = shlex.split(os.environ.get("CXX", "c++")) + ["-std=c++17", "-O3", "-fPIC", "-shared",
-                  str(root / "src/rumi/native/logh.cpp"), "-o", str(output)]
+    sources = [root/"src/rumi/native/logh.cpp", root/"src/rumi/native/physics_api.cpp"]
+    sources += sorted((root/"src/rumi/native/retained").glob("*.cpp"))
+    command = shlex.split(os.environ.get("CXX", "c++")) + ["-std=c++17", "-O3", "-fPIC", "-shared"]
+    command += [str(p) for p in sources] + ["-o", str(output)]
     subprocess.run(command, check=True)
     print(output)
 

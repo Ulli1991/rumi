@@ -5,18 +5,23 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "rumi-nbody"
 version = "0.1.0"
-description = "A speed-first hybrid JAX/Pallas and native-CPU N-body prototype"
+description = "A speed-first hybrid JAX/Pallas and native-CPU N-body port"
 requires-python = ">=3.11"
-dependencies = ["jax>=0.4.38", "numpy>=1.26"]
+dependencies = ["jax>=0.4.38", "numpy>=1.26", "h5py>=3.10"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+io = ["h5py>=3.10"]
+mpi = ["mpi4py>=3.1"]
+
+[project.scripts]
+rumi = "rumi.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-rumi = ["native/*.cpp"]
+rumi = ["native/*.cpp", "native/retained/*.cpp", "native/retained/*.h", "upstream_params.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

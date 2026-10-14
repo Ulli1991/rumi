@@ -44,6 +44,8 @@ def diagnostics(state, *, G=1.0, softening=0.0):
     energy = float(np.sum(0.5 * m[:, None] * v * v))
     for i in range(len(m)):
         for j in range(i + 1, len(m)):
+            if m[i] <= 0 or m[j] <= 0:
+                continue
             energy -= G * m[i] * m[j] / np.sqrt(np.sum((x[j] - x[i])**2) + softening**2)
     return {"energy": energy, "momentum": np.sum(m[:, None] * v, axis=0),
             "angular_momentum": np.sum(m[:, None] * np.cross(x, v), axis=0)}

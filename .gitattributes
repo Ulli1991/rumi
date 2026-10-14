@@ -1,0 +1,2 @@
+# Preserve upstream whitespace in retained numerical sources.
+src/rumi/native/retained/* whitespace=-blank-at-eof

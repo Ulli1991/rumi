@@ -14,7 +14,7 @@ class State(NamedTuple):
     subsystem: object      # (N,), -1 for field, nonnegative fixed group ID
 
     @classmethod
-    def create(cls, position, velocity, mass, *, ids=None, subsystem=None):
+    def create(cls, position, velocity, mass, *, ids=None, subsystem=None, allow_empty=False):
         """Validate host data before transferring it to JAX."""
         position = np.asarray(position, dtype=np.float64)
         n = len(position)
@@ -22,18 +22,18 @@ class State(NamedTuple):
                     np.asarray(mass, dtype=np.float64),
                     np.arange(n, dtype=np.int64) if ids is None else np.asarray(ids),
                     np.full(n, -1, dtype=np.int32) if subsystem is None else np.asarray(subsystem))
-        validate_state(state)
+        validate_state(state,allow_empty=allow_empty)
         result = cls(*(jnp.asarray(a) for a in state))
         if result.position.dtype != jnp.float64:
             raise RuntimeError("Rumi requires FP64: enable jax_enable_x64 before creating a state")
         return result
 
 
-def validate_state(state):
+def validate_state(state,*,allow_empty=False):
     """Host-side validation at initialization and acceptance boundaries, not inside kernels."""
     x, v, m, ids, sid = (np.asarray(a) for a in state)
     n = len(m)
-    if n < 1 or x.shape != (n, 3) or v.shape != (n, 3) or ids.shape != (n,) or sid.shape != (n,):
+    if (n < 1 and not allow_empty) or x.shape != (n, 3) or v.shape != (n, 3) or ids.shape != (n,) or sid.shape != (n,):
         raise ValueError("expected nonempty (N,3) positions/velocities and (N,) mass/IDs/subsystems")
     if not all(np.isfinite(a).all() for a in (x, v, m)) or np.any(m <= 0):
         raise ValueError("positions, velocities and positive masses must be finite")

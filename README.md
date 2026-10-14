@@ -1,24 +1,25 @@
 # Rumi
 
-A speed-first N-body prototype with readable Python orchestration, JAX/Pallas GPU kernels and
-native CPU regularization. Differentiability is not a requirement.
+A Python/JAX/Pallas port of cpp-nbody with native CPU few-body physics. Raw speed at controlled
+physical error is the goal; differentiability is not required.
 
-The target is competitive **complete-step performance at controlled physical error** against
-cpp-nbody. That target is not yet established. [The implementation plan](docs/PLAN.md) sets the gates.
+## Current implementation
 
-## Implemented pilot
+- FP64 direct forces, force gradients, FSI and adaptive HHS with connected components.
+- Dynamic subsystem detection; retained Kepler, LogH/GBS, slowdown/SDAR, PN and secular routines.
+- Stellar evolution, collisions, merger/recoil policies and conservation accounts.
+- Tides, escapers, integer positions, a CPU tree reference and cluster diagnostics.
+- Configuration/initial conditions, HDF5 snapshots/import and atomic NPZ checkpoints with solver carries.
+- Experimental field-only indexed JAX/Pallas HHS and fixed-membership CPU/field overlap.
 
-- FP64 direct forces and force gradients, subsystem exclusion, bounded-memory XLA and tiled Pallas paths.
-- Fourth-order fixed-step forward symplectic integration (FSI).
-- Native Newtonian LogH/GBS for 2..8 bodies, with COM normalization and explicit failure checks.
-- Fixed-membership hybrid integration: CPU encounters overlap an independent field-force dispatch.
-- Numerical tests and synchronized JSON benchmarks.
+The complete physical runtime currently uses host orchestration. The indexed device HHS experiment
+does not yet include every runtime feature. Native JAX sharding is the intended multi-GPU path;
+the optional MPI reference adapter is not the target architecture.
 
-HHS, slowdown/SDAR, PN, dynamic subsystem detection, mergers, SSE and multi-GPU evolution are planned.
-The hybrid force-completion tail is currently XLA. This is a numerical/scheduling pilot, not a production
-cluster solver. No GPU speed or correctness claim follows from the CPU interpreter tests.
+This is a validation handoff, not a claim of numerical parity or competitive GPU speed.
+See [validation status](docs/VALIDATION.md) and the [Raven handoff](docs/RAVEN.md).
 
-## Run locally
+## Install and run
 
 ```bash
 python -m venv .venv
@@ -26,42 +27,29 @@ source .venv/bin/activate
 pip install -e '.[test]'
 python scripts/build_cpu.py
 pytest -q
-python -m rumi.bench --mode fsi --n 256 --steps 10
-python -m rumi.bench --mode hybrid --n 256 --steps 10 --output results/hybrid.json
-python -m rumi.bench --mode hybrid --n 256 --steps 10 --no-overlap
+python -m rumi --help
+python -m rumi --steps 3 --output results/smoke
+python -m rumi --restart results/smoke/restart.npz --steps 3 --output results/resumed
 ```
 
-The CPU library needs a C++17 compiler; it has no Kokkos or Python-header dependency.
-An installed package can point to a separately built library using `RUMI_CPU_LIBRARY`.
+The native library needs a C++17 compiler, without Kokkos or Python headers.
+`RUMI_CPU_LIBRARY` can select a separately built library. HDF5 is a standard dependency.
+Snapshots contain physical state; exact continuation uses NPZ checkpoints. HDF5 snapshots alone
+do not restore native carries and all integration state.
 
-For an actual GPU install the JAX build appropriate to its CUDA/ROCm stack, pin that environment,
-then run the real-GPU tests and kernels explicitly:
+On Raven, install the JAX build appropriate to its GPU software stack before installing Rumi.
+Do not replace that build with a CPU-only JAX package. CPU Pallas interpretation does not validate
+compiled GPU kernels.
+
+## Upstream tracking
+
+The reference checkout is cpp-nbody at `8b7729c091a18caba109de4c51ac6ca9743ad388`.
+Retained CPU source provenance and hashes are in `docs/upstream_manifest.json`.
 
 ```bash
-pytest -q -m gpu
-python -m rumi.bench --mode force --backend pallas --n 32768 --steps 20
+python scripts/sync_cpp_nbody.py --source ../cpp-nbody --check
 ```
 
-The initial Pallas implementation selects Triton explicitly. Its availability and performance must
-be verified on the pinned GPU stack. `--interpret` is only for CPU validation. Compilation/warm-up
-is reported separately; warmed measurements wait for device completion.
-
-The API leaves precision configuration explicit:
-
-```python
-import jax
-jax.config.update('jax_enable_x64', True)
-from rumi import State
-from rumi.integrator import make_fsi_step
-
-state = State.create([[-0.5, 0, 0], [0.5, 0, 0]],
-                     [[0, -0.5, 0], [0, 0.5, 0]], [0.5, 0.5])
-state = make_fsi_step(backend='xla')(state, 0.01)
-```
-
-## Provenance
-
-The architecture and numerical conventions are informed by the user's cpp-nbody at `8b7729c`.
-The pilot is a separate implementation; no Kokkos runtime or source files are vendored. Native
-LogH currently covers Newtonian dynamics only and is not a drop-in replacement for cpp-nbody's
-full regularization module. Source licensing for any future extraction must be settled explicitly.
+This detects upstream changes; Python orchestration changes still require review and porting.
+`--apply` regenerates retained sources and the parameter table: inspect its diff and rerun validation.
+Keep cpp-nbody untouched and compare frozen particle arrays, rather than different random generators.

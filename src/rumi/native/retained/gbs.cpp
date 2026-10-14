@@ -1,0 +1,527 @@
+#include "gbs.h"
+#include "kepler.h"
+#include <limits>
+#include <atomic>
+#include <cstring>
+#include <cmath>
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
+
+constexpr int GBSIntegrator::STEP_SEQ[];
+constexpr int GBSIntegrator::STEP_SEQ_DEUFLHARD[];
+const int* GBSIntegrator::seq() const { return deuflhard ? STEP_SEQ_DEUFLHARD : STEP_SEQ; }
+int GBSIntegrator::kmax() const { return std::max(2, std::min(MAX_STAGES, max_stages)); }
+
+// ============================================================================
+// Pack/unpack LogHState to flat array for extrapolation
+// ============================================================================
+
+void GBSIntegrator::pack_state(const LogHState& state, double* y, int& dim) {
+    dim = 0;
+    int n = state.n_bodies;
+    for (int i = 0; i < n * 3; i++) y[dim++] = state.pos[i];
+    for (int i = 0; i < n * 3; i++) y[dim++] = state.vel[i];
+    if (state.use_aux_vel) {
+        for (int i = 0; i < n * 3; i++) y[dim++] = state.aux_vel[i];
+    }
+    if (state.has_spins) {
+        for (int k = 0; k < 3; k++) y[dim++] = state.spin1[k];
+        for (int k = 0; k < 3; k++) y[dim++] = state.spin2[k];
+        for (int k = 0; k < 3; k++) y[dim++] = state.aux_spin1[k];
+        for (int k = 0; k < 3; k++) y[dim++] = state.aux_spin2[k];
+    }
+    y[dim++] = state.t;
+    y[dim++] = state.B;
+}
+
+void GBSIntegrator::unpack_state(const double* y, int dim, LogHState& state) {
+    (void)dim;
+    int idx = 0;
+    int n = state.n_bodies;
+    for (int i = 0; i < n * 3; i++) state.pos[i] = y[idx++];
+    for (int i = 0; i < n * 3; i++) state.vel[i] = y[idx++];
+    if (state.use_aux_vel) {
+        for (int i = 0; i < n * 3; i++) state.aux_vel[i] = y[idx++];
+    }
+    if (state.has_spins) {
+        for (int k = 0; k < 3; k++) state.spin1[k] = y[idx++];
+        for (int k = 0; k < 3; k++) state.spin2[k] = y[idx++];
+        for (int k = 0; k < 3; k++) state.aux_spin1[k] = y[idx++];
+        for (int k = 0; k < 3; k++) state.aux_spin2[k] = y[idx++];
+    }
+    state.t = y[idx++];
+    state.B = y[idx++];
+}
+
+static double* spin_vec(LogHState& s, int i) {
+    return i == 0 ? s.spin1 : i == 1 ? s.spin2 : i == 2 ? s.aux_spin1 : s.aux_spin2;
+}
+
+void GBSIntegrator::spin_norms(LogHState& state, double norm[4]) {
+    for (int i = 0; i < 4; i++) {
+        const double* c = spin_vec(state, i);
+        norm[i] = std::sqrt(c[0]*c[0] + c[1]*c[1] + c[2]*c[2]);
+    }
+}
+
+void GBSIntegrator::restore_spin_norms(LogHState& state, const double norm[4]) {
+    double now[4];
+    spin_norms(state, now);
+    for (int i = 0; i < 4; i++) {
+        if (now[i] == 0.0) continue;
+        double* c = spin_vec(state, i);
+        for (int k = 0; k < 3; k++) c[k] *= norm[i] / now[i];
+    }
+}
+
+// ============================================================================
+// Take n_substeps leapfrog steps over interval ds_total
+// Leapfrog is symmetric (time-reversible) so error expands in even powers
+// of h — GBS polynomial extrapolation in h² works directly, no smoothing needed
+// ============================================================================
+
+void GBSIntegrator::midpoint(const LogHState& in, LogHState& out,
+                              int n_substeps, double ds_total, double G,
+                              double c_code, int pn_order, const LogHStepStart* start) {
+    double h = ds_total / n_substeps;
+    out = in;
+    if (pn_order > 0 && out.use_aux_vel) {
+        logh_leapfrog_steps_pn(out, h, G, c_code, pn_order, n_substeps, start);
+    } else {
+        logh_leapfrog_steps(out, h, G, n_substeps, start);
+    }
+}
+
+// ============================================================================
+// Polynomial extrapolation (Neville-Aitken) in h²
+//
+// table[0..stage] hold RAW midpoint results M(n_i) — never modified.
+// work[][] is used for the Neville table: T[i][j].
+//   T[i][0] = M(n_i)
+//   T[i][j] = T[i][j-1] + (T[i][j-1] - T[i-1][j-1]) / ((n_i/n_{i-j})² - 1)
+// Best estimate: T[stage][stage] stored in work[stage].
+// Error: |T[stage][stage] - T[stage-1][stage-1]|.
+//
+// Incremental: row i of the table depends only on M(n_0..n_i), so each call adds one row. On entry work[j] holds
+// T[stage-1][j] (j < stage), on exit T[stage][j] (j <= stage): O(stage) row operations per call instead of
+// rebuilding the table from table[0..stage] (O(stage^2)). Each T[i][j] is computed with the same operation as in
+// the full rebuild, so the result is bit-identical. Calls must come in stage order 0, 1, 2, ... (GBS step).
+//
+// IMPORTANT: The old algorithm overwrote table[] in-place, which corrupted
+// intermediate values (table[j] = T[k,k] after stage k, not M(n_j)).
+// Stages > 1 then used T[k-1,k-1] instead of the raw midpoint, producing
+// wrong extrapolation that could falsely report convergence.
+// ============================================================================
+
+double GBSIntegrator::extrapolate(int stage, int dim) {
+    double* cur = work[stage];   // T[stage][j-1] before column j, T[stage][j] after
+    std::memcpy(cur, table[stage], dim * sizeof(double));   // T[stage][0] = raw midpoint result
+    if (stage == 0) return 1.0;  // need at least 2 stages
+
+    double max_err = 0.0;
+    for (int j = 1; j <= stage; j++) {
+        // T[i][j] = T[i][j-1] + (T[i][j-1] - T[i-1][j-1]) / ((n_i/n_{i-j})^2 - 1),  i = stage
+        const int i = stage;
+        double ratio = (double)(seq()[i] * seq()[i]) /
+                       (double)(seq()[i-j] * seq()[i-j]);
+        double factor = 1.0 / (ratio - 1.0);
+
+        double* prev = work[j-1];   // T[stage-1][j-1], replaced by T[stage][j-1] for the next call
+        if (j < stage) {
+            for (int d = 0; d < dim; d++) {
+                double delta = cur[d] - prev[d];
+                double t = cur[d] + factor * delta;
+                prev[d] = cur[d];
+                cur[d] = t;
+            }
+        } else {
+            // Last column: also the error |T[stage][stage] - T[stage-1][stage-1]| (prev = T[stage-1][stage-1])
+            for (int d = 0; d < dim; d++) {
+                double delta = cur[d] - prev[d];
+                double t = cur[d] + factor * delta;
+                double scale = std::max(1.0, std::fabs(t));
+                double err = std::fabs(t - prev[d]) / scale;
+                if (!std::isfinite(err)) return std::numeric_limits<double>::infinity();
+                if (err > max_err) max_err = err;
+                prev[d] = cur[d];
+                cur[d] = t;
+            }
+        }
+    }
+    return max_err;
+}
+
+// ============================================================================
+// Full GBS step with adaptive order
+// ============================================================================
+
+// NBODY_GBS_STATS=1: totals over the run, printed at exit (calls, GBS steps, failed and overshooting steps, the
+// stage at which converged steps stopped). Counted only then: the host batch integrates subsystems on all
+// threads, and atomic updates of shared counters on every step cost cache-line traffic
+namespace {
+const bool gbs_stats_on = std::getenv("NBODY_GBS_STATS") != nullptr;
+struct GbsStats {
+    std::atomic<long long> calls{0}, steps{0}, failed{0}, overshoot{0}, stage[GBSIntegrator::MAX_STAGES] = {};
+    ~GbsStats() {
+        if (!gbs_stats_on || calls == 0) return;
+        std::printf("GBS stats: %lld calls, %lld steps (%.1f / call), failed %lld, overshoot %lld; converged at stage:",
+                    calls.load(), steps.load(), (double)steps / calls, failed.load(), overshoot.load());
+        for (int k = 0; k < GBSIntegrator::MAX_STAGES; k++) std::printf(" %lld", stage[k].load());
+        std::printf("\n");
+    }
+} g_gbs_stats;
+}  // namespace
+
+// Midpoint results of stages k0..k1 into table[] on the host threads, the largest stage handed out first
+void GBSIntegrator::compute_stages(const LogHState& state, int k0, int k1, double ds, double G,
+                                   double c_code, int pn_order, const LogHStepStart* start) {
+    for (int k = k1; k >= k0; --k) {
+        LogHState result;
+        midpoint(state, result, seq()[k], ds, G, c_code, pn_order, start);
+        int dim = 0;
+        pack_state(result, table[k], dim);
+    }
+}
+
+bool GBSIntegrator::step(LogHState& state, double ds, double G, double& ds_next,
+                          double c_code, int pn_order) {
+    int dim = 0;
+    pack_state(state, y_start, dim);   // the integrated fields of the state before the step (restore_step)
+    dim_start = dim;
+
+    // Values at the start of the first substep, the same for every stage (not used by the SDAR steps)
+    LogHStepStart start_buf;
+    const LogHStepStart* start = nullptr;
+    if ((pn_order > 0 && state.use_aux_vel) || state.n_sd == 0) {
+        logh_step_start(state, G, c_code, pn_order, start_buf);
+        start = &start_buf;
+    }
+
+    int computed = -1;   // table[0..computed] holds the raw midpoint results
+    const int k_max = kmax();
+    for (int stage = 0; stage < k_max; stage++) {
+        if (stage > computed) {
+            if (par_stages) {
+                // Stage-parallel: the substep divisions are independent (Rantala et al. 2020, MSTAR, Sec. 4);
+                // compute stage..k1 at once, k1 = the stage the last step converged at. The extrapolation below
+                // runs in the same order on the same table, so the result is the serial one; unused stages
+                // beyond the converged one are discarded
+                const int k1 = std::min(k_max - 1, std::max(stage, par_hint));
+                compute_stages(state, stage, k1, ds, G, c_code, pn_order, start);
+                computed = k1;
+            } else {
+                LogHState result;   // midpoint copies state into it (masses, B, n_bodies, etc.)
+                midpoint(state, result, seq()[stage], ds, G, c_code, pn_order, start);
+                pack_state(result, table[stage], dim);
+                computed = stage;
+            }
+        }
+
+        // Always call extrapolate, in stage order — stage 0 starts the Neville table (returns 1.0).
+        // Without this, the table row is uninitialized garbage and stage 1 can
+        // falsely report convergence.
+        double err = extrapolate(stage, dim);
+
+        if (stage > 0) {
+            if (err < eta_gbs) {
+                if (gbs_stats_on) g_gbs_stats.stage[stage]++;
+                par_hint = stage;
+                // Converged: unpack best estimate from work[stage]
+                double chi_norm[4];
+                if (state.has_spins) spin_norms(state, chi_norm);
+                unpack_state(work[stage], dim, state);
+                // |chi| is an exact invariant of dS/dt = Omega × S (the leapfrog rotations keep it); the
+                // polynomial extrapolation does not, to within eta_gbs: restore the norms
+                if (state.has_spins) restore_spin_norms(state, chi_norm);
+
+                // Suggest next step size
+                double safety = 0.8;
+                double order = 2.0 * (stage + 1);
+                ds_next = ds * safety * std::pow(eta_gbs / (err + 1e-30), 1.0 / order);
+                ds_next = std::min(ds_next, 4.0 * ds);  // don't grow too fast
+                return true;
+            }
+
+            // Early exit: if error is enormous after several stages,
+            // the step is clearly too large for the dynamics. Bail out
+            // early to save computing higher stages with no hope.
+            if (stage >= 3 && err > 1.0) {
+                ds_next = 0.5 * ds;
+                return false;
+            }
+        }
+    }
+
+    // Did not converge — halve step size and try again
+    ds_next = 0.5 * ds;
+    return false;
+}
+
+// ============================================================================
+// Collision scan (FROST-CLUSTERS I App. B3)
+// ============================================================================
+
+namespace {
+struct PairState { double r[3], v[3], rr, rv, mu; };
+PairState pair_state(const LogHState& s, int i, int j, double G) {
+    PairState q;
+    for (int k = 0; k < 3; k++) { q.r[k] = s.pos[j*3+k] - s.pos[i*3+k]; q.v[k] = s.vel[j*3+k] - s.vel[i*3+k]; }
+    q.rr = std::sqrt(q.r[0]*q.r[0] + q.r[1]*q.r[1] + q.r[2]*q.r[2]);
+    q.rv = q.r[0]*q.v[0] + q.r[1]*q.v[1] + q.r[2]*q.v[2];
+    q.mu = G * (s.mass[i] + s.mass[j]);
+    return q;
+}
+// The slowed relative motion of an SDAR binary runs 1/kappa times slower: its pericentre is kappa tau away
+double sd_factor(const LogHState& s, int i, int j) {
+    for (int k = 0; k < s.n_sd; k++)
+        if (s.sd_a[k] == i && s.sd_b[k] == j) return s.sd_kappa[k];
+    return 1.0;
+}
+struct CollScan {
+    int ci = -1, cj = -1;   // collision now (smallest r / r_coll)
+    double r = 0.0, best = 1e300;
+    int pi = -1, pj = -1;   // candidate with the earliest pericentre
+    double tau = std::numeric_limits<double>::infinity(), tscale = 0.0;
+    bool skip_receding = false;   // the skipped pair has passed its pericentre
+};
+void collision_scan(const LogHState& s, double G, const double* coll, int skip_i, int skip_j, CollScan& out) {
+    for (int i = 0; i < s.n_bodies; i++)
+        for (int j = i + 1; j < s.n_bodies; j++) {
+            const double rc = coll[i * LOGH_MAX_BODIES + j];
+            if (!(rc > 0.0)) continue;
+            const PairState q = pair_state(s, i, j, G);
+            if (q.rr < rc) {
+                if (q.rr / rc < out.best) { out.best = q.rr / rc; out.ci = i; out.cj = j; out.r = q.rr; }
+                continue;
+            }
+            if (i == skip_i && j == skip_j) {
+                if (q.rv > 0.0) out.skip_receding = true;
+                continue;
+            }
+            double rp = 0.0;
+            const double tau = kepler_time_to_pericentre(q.r, q.v, q.mu, &rp) * sd_factor(s, i, j);
+            if (rp < rc && tau < out.tau) {
+                out.tau = tau; out.pi = i; out.pj = j;
+                out.tscale = std::sqrt(rp * rp * rp / q.mu);   // duration of the pericentre passage
+            }
+        }
+}
+}  // namespace
+
+// ============================================================================
+// Integrate to target physical time using GBS
+// ============================================================================
+
+int GBSIntegrator::integrate_to_time(LogHState& state, double t_target, double G,
+                                      double ds_initial, double c_code, int pn_order,
+                                      int max_iter) {
+    // Compute dynamical timescale from closest pair separation.
+    // This limits ds so that even GBS stage 0 (2 substeps) can resolve
+    // the fastest dynamics (e.g. periapsis passage at high eccentricity).
+    double r_min_sq = 1e60;
+    double M_total = 0;
+    for (int i = 0; i < state.n_bodies; i++) {
+        M_total += state.mass[i];
+        for (int j = i + 1; j < state.n_bodies; j++) {
+            double dx = state.pos[j*3] - state.pos[i*3];
+            double dy = state.pos[j*3+1] - state.pos[i*3+1];
+            double dz = state.pos[j*3+2] - state.pos[i*3+2];
+            r_min_sq = std::min(r_min_sq, dx*dx + dy*dy + dz*dz);
+        }
+    }
+    double r_min = std::sqrt(r_min_sq);
+    double t_dyn = std::sqrt(r_min * r_min * r_min / (G * M_total));
+    // SDAR: a slowed binary's orbit takes kappa P, its dynamical time kappa times longer
+    if (state.n_sd > 0) t_dyn = logh_sd_dyn_time(state, G, M_total);
+
+    double Omega0 = logh_omega(state);   // T + B (T_sd + B with slowed binaries)
+    if (Omega0 < 1e-30) Omega0 = 1e-30;
+
+    // Scale ds so each GBS step covers at most ~1/dyn_cap dynamical times (default 3; was 10, which cost 4x the
+    // GBS steps at unchanged accuracy on the binary, PN, merger and dense-core tests; NBODY_GBS_DYNCAP overrides).
+    // BIFROST convention: dt = ds / Omega, so ds = dt * Omega.
+    // This ensures stage 0 (2 substeps) produces a qualitatively correct
+    // solution, which is required for GBS polynomial extrapolation.
+    static const double dyn_cap = std::getenv("NBODY_GBS_DYNCAP") ? std::atof(std::getenv("NBODY_GBS_DYNCAP")) : 3.0;
+    double ds_dyn = t_dyn * Omega0 / dyn_cap;
+    double ds = std::min(ds_initial, ds_dyn);
+
+    // Relative tolerance on the end time. 1e-12 lands subsystems exactly on the step time, but on the dense-core
+    // case it samples the oscillating tidal-coupling floor at another binary phase: |dE/E| ~1 % higher on 4 of 4
+    // seeds. Kept at 1e-4 (energy first); NBODY_GBS_TTOL overrides.
+    const double time_tol = time_tolerance;
+    int n_steps = 0;
+    int n_failed = 0;
+    int n_overshoot = 0;
+    double ds_min_used = ds;
+    double ds_max_used = ds;
+
+    // SDAR: the step limit follows the slowed orbits actually integrated (kappa changes during the call): at
+    // most steps_per_orbit x (slowed orbits done + remaining time / current shortest slowed orbit), at least
+    // max_iter (the caller's limit at the initial kappa), at most 4e6
+    double sd_orbits_done = 0.0, sd_P_eff = 0.0;
+    if (sdar && sdar->steps_per_orbit > 0.0) {
+        LogHState probe = state;   // current shortest slowed orbit; no jump (same kappa as the caller set)
+        sd_P_eff = logh_sd_update(probe, G, *sdar);
+    }
+    const int iter_cap = (sdar && sdar->steps_per_orbit > 0.0) ? std::max(max_iter, 4000000) : max_iter;
+
+    // Collision candidates (FROST-CLUSTERS I App. B3): t_goal is the next end time of the step-size control, the
+    // earliest candidate pericentre inside the interval or t_target. The same control (ds = Omega (t_goal - t),
+    // secant on overshoot) then lands a step on the pericentre; the osculating elements re-aim it after every
+    // step, so the landing iterates onto the actual pericentre (as NBODY6's chain, Aarseth 2003, DERQP / TPERI).
+    // peri_tol: landing tolerance, 1e-3 of the pericentre passage time sqrt(r_p^3 / (G m)).
+    coll_i = coll_j = -1;
+    double t_goal = t_target;
+    int peri_i = -1, peri_j = -1, skip_i = -1, skip_j = -1, peri_aims = 0;
+    double peri_tol = 0.0;
+    const double dir = t_target >= state.t ? 1.0 : -1.0;
+    auto scan = [&]() -> bool {
+        if (!coll) return false;
+        CollScan cs;
+        collision_scan(state, G, coll, skip_i, skip_j, cs);        if (cs.skip_receding) skip_i = skip_j = -1;
+        if (cs.ci >= 0) { coll_i = cs.ci; coll_j = cs.cj; coll_rsep = cs.r; return true; }
+        const int prev_i = peri_i, prev_j = peri_j;
+        t_goal = t_target;
+        peri_i = peri_j = -1;
+        if (cs.pi >= 0 && dir * (t_target - state.t) > cs.tau) {
+            t_goal = state.t + dir * cs.tau;
+            peri_i = cs.pi; peri_j = cs.pj;
+            peri_tol = 1e-3 * cs.tscale;
+            peri_aims = (peri_i == prev_i && peri_j == prev_j) ? peri_aims + 1 : 0;
+        }
+        return false;
+    };
+    // At a candidate's pericentre (landed within peri_tol, or just past it, or re-aimed 8 times): decide on the
+    // osculating pericentre distance of this passage; true: collision (stop)
+    auto decide_at_peri = [&]() -> bool {
+        if (peri_i < 0) return false;
+        const PairState q = pair_state(state, peri_i, peri_j, G);
+        double rp = 0.0;
+        const double tau = kepler_time_to_pericentre(q.r, q.v, q.mu, &rp) * sd_factor(state, peri_i, peri_j);
+        const bool at_peri = q.rv >= 0.0 || tau <= peri_tol || peri_aims >= 8;
+        if (!at_peri) return false;
+        peri_landings++;
+        const double rc = coll[peri_i * LOGH_MAX_BODIES + peri_j];
+        if (std::min(rp, q.rr) < rc) {
+            coll_i = peri_i; coll_j = peri_j; coll_rsep = std::min(rp, q.rr);
+            return true;
+        }
+        peri_misses++;                       // perturbed: the actual pericentre clears r_coll
+        skip_i = peri_i; skip_j = peri_j;    // not this passage again
+        peri_i = peri_j = -1;
+        return false;
+    };
+    scan();   // a collision already at the start stops before the first step
+    for (int iter = 0; iter < iter_cap && coll_i < 0; iter++) {
+        // Candidate pericentre reached: decide there, then aim at the next goal
+        if (peri_i >= 0 && dir * (t_goal - state.t) <= peri_tol) {
+            if (decide_at_peri()) break;
+            if (scan()) break;
+        }
+        // Check if we've reached the target time
+        double dt_remain = t_goal - state.t;
+        const double dt_left = t_target - state.t;
+        if (peri_i < 0 && std::fabs(dt_left) < time_tol * std::fabs(t_target)) break;
+        if (iter_cap != max_iter && iter >= max_iter &&
+            iter >= sdar->steps_per_orbit * (sd_orbits_done + std::fabs(dt_left) / sd_P_eff))
+            break;
+
+        // Recompute dynamical time constraint at current state
+        // Prevents ds from growing too large when orbit approaches periapsis
+        double r_min_now_sq = 1e60;
+        for (int i = 0; i < state.n_bodies; i++) {
+            for (int j = i + 1; j < state.n_bodies; j++) {
+                double dx = state.pos[j*3] - state.pos[i*3];
+                double dy = state.pos[j*3+1] - state.pos[i*3+1];
+                double dz = state.pos[j*3+2] - state.pos[i*3+2];
+                double r2 = dx*dx + dy*dy + dz*dz;
+                if (r2 < r_min_now_sq) r_min_now_sq = r2;
+            }
+        }
+        double r_min_now = std::sqrt(r_min_now_sq);
+        double t_dyn_now = std::sqrt(r_min_now * r_min_now * r_min_now / (G * M_total));
+        if (state.n_sd > 0) t_dyn_now = logh_sd_dyn_time(state, G, M_total);
+
+        // Estimate ds from dt_remain * Omega (BIFROST: ds = dt * Omega)
+        double Omega = logh_omega(state);
+        if (Omega < 1e-30) Omega = 1e-30;
+        double ds_est = dt_remain * Omega;
+
+        // Also cap ds by dynamical time (BIFROST: ds = dt * Omega)
+        double ds_dyn_now = t_dyn_now * Omega / dyn_cap;
+
+        // Use the smallest of current ds, time-based estimate, and dynamical limit
+        double ds_try = ds;
+        if (std::fabs(ds_est) < std::fabs(ds_try)) ds_try = ds_est;
+        if (std::fabs(ds_dyn_now) < std::fabs(ds_try)) ds_try = ds_dyn_now;
+
+        if (std::fabs(ds_try) < ds_min_used) ds_min_used = std::fabs(ds_try);
+        if (std::fabs(ds_try) > ds_max_used) ds_max_used = std::fabs(ds_try);
+
+        // For the bisection on overshoot: step() leaves the state unchanged when it fails and keeps the fields it
+        // changes for restore_step (no full copy of the state per step)
+        const double t_saved = state.t;
+        double ds_next;
+
+        bool ok = step(state, ds_try, G, ds_next, c_code, pn_order);
+        n_steps++;
+
+        if (!ok) {
+            // Step failed (state unchanged) — halve and retry (ds persists to next iteration)
+            ds = ds_try * 0.5;
+            n_failed++;
+            if (gbs_stats_on) g_gbs_stats.failed++;
+            continue;
+        }
+
+        // Check if we overshot the goal (target time, or a candidate's pericentre by more than peri_tol)
+        const double t_over = peri_i >= 0 ? peri_tol : 1e-10 * std::fabs(t_target);
+        if ((dt_remain > 0 && state.t > t_goal + t_over) ||
+            (dt_remain < 0 && state.t < t_goal - t_over)) {
+            // Overshoot: aim at the target with the secant through this attempt (t(s) is smooth over a step),
+            // slightly short so that the next step lands inside the tolerance from below
+            const double dt_attempt = state.t - t_saved;
+            restore_step(state);
+            ds = (dt_attempt != 0.0) ? ds_try * (dt_remain / dt_attempt) * (1.0 - 1e-6) : ds_try * 0.5;
+            n_overshoot++;
+            if (gbs_stats_on) g_gbs_stats.overshoot++;
+            continue;
+        }
+
+        // Success: use GBS-suggested step size (will be capped by ds_est next iter)
+        ds = ds_next;
+        // Jumping kappa: new slow-down factors for the next step, energy jump booked into B (Wang+2020 Eq. 24)
+        if (sdar) {
+            if (sd_P_eff > 0.0) sd_orbits_done += std::fabs(state.t - t_saved) / sd_P_eff;
+            const double P_eff = logh_sd_update(state, G, *sdar);
+            if (sd_P_eff > 0.0) sd_P_eff = P_eff;
+        }
+        // Collisions: a step that ended on the aimed pericentre, or past it (the aim moved), decides it; then
+        // all pairs are scanned again
+        if (coll) {
+            if (peri_i >= 0) {
+                const PairState q = pair_state(state, peri_i, peri_j, G);
+                if ((dir * (t_goal - state.t) <= peri_tol || q.rv >= 0.0) && decide_at_peri()) break;
+            }
+            if (scan()) break;
+        }
+    }
+
+    if (gbs_stats_on) {
+        g_gbs_stats.calls++;
+        g_gbs_stats.steps += n_steps;
+    }
+    double dt_remain = t_target - state.t;
+    reached = std::fabs(dt_remain) < time_tol * std::fabs(t_target);
+    if (!reached && coll_i < 0) {
+        double Omega_final = logh_omega(state);
+        std::printf("      GBS: %d steps, t_final=%.6f/%.6f  Omega=%.3e  ds_range=[%.2e,%.2e]  fail=%d overshoot=%d"
+                    " *** DID NOT REACH TARGET ***\n",
+                    n_steps, state.t, t_target, Omega_final,
+                    ds_min_used, ds_max_used, n_failed, n_overshoot);
+    }
+
+    return n_steps;
+}
